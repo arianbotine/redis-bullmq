@@ -230,11 +230,8 @@ else
 fi
 
 echo ""
-echo "🚀 Para iniciar a aplicação principal:"
+echo "🚀 Para iniciar a aplicação (com processamento de jobs integrado):"
 echo "   npm run start:dev"
-echo ""
-echo "🔧 Para iniciar o worker (opcional, em terminal separado):"
-echo "   npm run start:worker"
 echo ""
 echo "🧪 Para executar testes:"
 echo "   ./test.sh"
@@ -245,12 +242,12 @@ echo "   • POST http://localhost:3000/offers/:id/accept - Aceitar oferta"
 echo "   • GET  http://localhost:3000/offers - Listar ofertas"
 echo ""
 
-# Opção para iniciar as aplicações automaticamente
-read -p "🤔 Deseja iniciar a aplicação e o worker automaticamente agora? (y/n): " -n 1 -r
+# Opção para iniciar a aplicação automaticamente
+read -p "🤔 Deseja iniciar a aplicação automaticamente agora? (y/n): " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    log_info "Iniciando aplicação NestJS e Worker Bull em terminais separados..."
+    log_info "Iniciando aplicação NestJS (com processamento de jobs integrado)..."
     echo ""
     
     # Detectar terminal disponível
@@ -302,57 +299,36 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         # Aguardar um pouco para mostrar as mensagens
         sleep 2
         
-        # Iniciar worker em terminal separado
-        log_info "Abrindo Worker Bull em novo terminal..."
+        # Iniciar aplicação em terminal separado
+        log_info "Abrindo Aplicação NestJS em novo terminal..."
         case $TERMINAL in
             "gnome-terminal")
-                gnome-terminal --title="Worker Bull - PoC Ofertas" -- bash -c "echo '🔧 Iniciando Worker Bull...'; echo 'Use Ctrl+C para parar'; echo ''; npm run start:worker; read -p 'Pressione Enter para fechar...'"
+                gnome-terminal --title="Aplicação NestJS - PoC Ofertas" -- bash -c "echo '� Iniciando Aplicação NestJS (com processamento de jobs integrado)...'; echo 'Acesse: http://localhost:3000'; echo 'Use Ctrl+C para parar'; echo ''; npm run start:dev; read -p 'Pressione Enter para fechar...'"
                 ;;
             "xterm")
-                xterm -title "Worker Bull - PoC Ofertas" -e "bash -c 'echo \"🔧 Iniciando Worker Bull...\"; echo \"Use Ctrl+C para parar\"; echo \"\"; npm run start:worker; read -p \"Pressione Enter para fechar...\"'" &
+                xterm -title "Aplicação NestJS - PoC Ofertas" -e "bash -c 'echo \"🚀 Iniciando Aplicação NestJS (com processamento de jobs integrado)...\"; echo \"Acesse: http://localhost:3000\"; echo \"Use Ctrl+C para parar\"; echo \"\"; npm run start:dev; read -p \"Pressione Enter para fechar...\"'" &
                 ;;
             "konsole")
-                konsole --title "Worker Bull - PoC Ofertas" -e bash -c "echo '🔧 Iniciando Worker Bull...'; echo 'Use Ctrl+C para parar'; echo ''; npm run start:worker; read -p 'Pressione Enter para fechar...'" &
+                konsole --title "Aplicação NestJS - PoC Ofertas" -e bash -c "echo '🚀 Iniciando Aplicação NestJS (com processamento de jobs integrado)...'; echo 'Acesse: http://localhost:3000'; echo 'Use Ctrl+C para parar'; echo ''; npm run start:dev; read -p 'Pressione Enter para fechar...'" &
                 ;;
             "terminator")
-                terminator --title="Worker Bull - PoC Ofertas" -e "bash -c 'echo \"🔧 Iniciando Worker Bull...\"; echo \"Use Ctrl+C para parar\"; echo \"\"; npm run start:worker; read -p \"Pressione Enter para fechar...\"'" &
-                ;;
-        esac
-        
-        # Aguardar um pouco para o worker inicializar
-        sleep 3
-        
-        # Iniciar aplicação principal em terminal separado
-        log_info "Abrindo Aplicação Principal em novo terminal..."
-        case $TERMINAL in
-            "gnome-terminal")
-                gnome-terminal --title="Aplicação NestJS - PoC Ofertas" -- bash -c "echo '🚀 Iniciando Aplicação NestJS...'; echo 'Acesse: http://localhost:3000'; echo 'Use Ctrl+C para parar'; echo ''; npm run start:dev; read -p 'Pressione Enter para fechar...'"
-                ;;
-            "xterm")
-                xterm -title "Aplicação NestJS - PoC Ofertas" -e "bash -c 'echo \"🚀 Iniciando Aplicação NestJS...\"; echo \"Acesse: http://localhost:3000\"; echo \"Use Ctrl+C para parar\"; echo \"\"; npm run start:dev; read -p \"Pressione Enter para fechar...\"'" &
-                ;;
-            "konsole")
-                konsole --title "Aplicação NestJS - PoC Ofertas" -e bash -c "echo '🚀 Iniciando Aplicação NestJS...'; echo 'Acesse: http://localhost:3000'; echo 'Use Ctrl+C para parar'; echo ''; npm run start:dev; read -p 'Pressione Enter para fechar...'" &
-                ;;
-            "terminator")
-                terminator --title="Aplicação NestJS - PoC Ofertas" -e "bash -c 'echo \"🚀 Iniciando Aplicação NestJS...\"; echo \"Acesse: http://localhost:3000\"; echo \"Use Ctrl+C para parar\"; echo \"\"; npm run start:dev; read -p \"Pressione Enter para fechar...\"'" &
+                terminator --title="Aplicação NestJS - PoC Ofertas" -e "bash -c 'echo \"🚀 Iniciando Aplicação NestJS (com processamento de jobs integrado)...\"; echo \"Acesse: http://localhost:3000\"; echo \"Use Ctrl+C para parar\"; echo \"\"; npm run start:dev; read -p \"Pressione Enter para fechar...\"'" &
                 ;;
         esac
         
         echo ""
-        log_success "Ambos os terminais foram abertos!"
+        log_success "Terminal da aplicação foi aberto!"
         echo ""
-        echo "📋 Os terminais devem estar abertos agora:"
-        echo "   • Terminal 1: Worker Bull (processamento em background)"
-        echo "   • Terminal 2: Aplicação NestJS (API na porta 3000)"
+        echo "📋 A aplicação deve estar rodando agora:"
+        echo "   • Aplicação NestJS: http://localhost:3000 (com processamento de jobs integrado)"
+        echo "   • Portal Web: http://localhost:3000/index.html"
         echo ""
         echo "💡 Para parar tudo use: ./stop.sh"
     fi
 else
     echo ""
-    log_info "OK! Use os comandos acima quando estiver pronto."
+    log_info "OK! Use o comando acima quando estiver pronto."
     echo ""
-    echo "💡 Para iniciar ambos simultaneamente:"
-    echo "   Terminal 1: npm run start:dev"
-    echo "   Terminal 2: npm run start:worker"
+    echo "💡 Para iniciar a aplicação:"
+    echo "   npm run start:dev"
 fi

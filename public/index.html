@@ -354,13 +354,17 @@
     <div class="container">
         <div class="header">
             <h1>🚛 Portal de Ofertas</h1>
-            <p class="subtitle">Sistema de Gestão de Ofertas de Rotas de Entrega</p>
+            <p class="subtitle">Sistema de Gestão de Ofertas com Notificações via API REST</p>
+            <div style="background: #e7f3ff; padding: 10px; border-radius: 8px; margin-top: 15px; font-size: 13px; color: #0066cc;">
+                💡 <strong>Novo Modelo:</strong> As notificações são enviadas para sistema externo via API REST. 
+                Confira os logs detalhados no terminal do worker!
+            </div>
         </div>
 
         <div class="status-bar">
             <div class="status-indicator">
                 <div class="status-dot" id="statusDot"></div>
-                <span id="connectionStatus">Conectando...</span>
+                <span id="connectionStatus">Sistema Online</span>
             </div>
             <div>
                 <span id="currentTime"></span>
@@ -386,7 +390,7 @@
                         <label for="duration">Duração (minutos)</label>
                         <select id="duration">
                             <option value="1">1 minuto (teste)</option>
-                            <option value="5">5 minutos</option>
+                            <option value="3">3 minutos</option>
                             <option value="10">10 minutos</option>
                             <option value="30">30 minutos</option>
                             <option value="60">1 hora</option>
@@ -426,16 +430,24 @@
             <div id="offersList"></div>
         </div>
 
-        <!-- Logs -->
-        <div class="logs" id="logs"></div>
+        <!-- Logs de Notificações -->
+        <div class="offers-list">
+            <h2>📱 Log de Notificações API</h2>
+            <p style="color: #6c757d; margin-bottom: 15px; font-size: 14px;">
+                🔍 <strong>Como funciona:</strong> As notificações são enviadas via API REST para sistema externo. 
+                Aqui simulamos essas chamadas através de logs no terminal do worker.
+            </p>
+            <div class="logs" id="logs">
+                <div style="color: #00aaff;">[Sistema] Portal inicializado - Monitorando notificações via API REST</div>
+                <div style="color: #888;">Logs das chamadas de API aparecerão no terminal do worker...</div>
+            </div>
+        </div>
     </div>
 
-    <!-- Socket.IO Client -->
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Remoção do Socket.IO Client - não é mais necessário -->
     <script>
         class OfferPortal {
             constructor() {
-                this.socket = null;
                 this.offers = [];
                 this.init();
             }
@@ -444,39 +456,12 @@
                 this.updateTime();
                 setInterval(() => this.updateTime(), 1000);
                 
-                this.setupSocketConnection();
+                this.updateConnectionStatus(true); // Sistema sempre online agora
                 this.setupEventListeners();
                 this.loadOffers();
-            }
-
-            setupSocketConnection() {
-                this.log('🔌 Conectando ao WebSocket...', 'info');
                 
-                try {
-                    this.socket = io('http://localhost:3000');
-                    
-                    this.socket.on('connect', () => {
-                        this.log('✅ Conectado ao WebSocket!', 'success');
-                        this.updateConnectionStatus(true);
-                    });
-
-                    this.socket.on('disconnect', () => {
-                        this.log('❌ Desconectado do WebSocket', 'error');
-                        this.updateConnectionStatus(false);
-                    });
-
-                    this.socket.on('offer-notification', (data) => {
-                        this.log(`📢 Nova oferta: ${data.offerId} para ${data.drivers.length} motoristas`, 'info');
-                    });
-
-                    this.socket.on('connect_error', (error) => {
-                        this.log(`❌ Erro de conexão: ${error.message}`, 'error');
-                        this.updateConnectionStatus(false);
-                    });
-                } catch (error) {
-                    this.log(`❌ Erro ao conectar WebSocket: ${error.message}`, 'error');
-                    this.updateConnectionStatus(false);
-                }
+                this.log('🚀 Portal iniciado - Usando API REST para notificações', 'success');
+                this.log('📱 Notificações são enviadas via logs no terminal do worker', 'info');
             }
 
             setupEventListeners() {
@@ -492,7 +477,7 @@
                     this.acceptOffer();
                 });
 
-                // Auto-refresh das ofertas
+                // Auto-refresh das ofertas a cada 5 segundos
                 setInterval(() => this.loadOffers(), 5000);
             }
 
@@ -530,6 +515,7 @@
 
                     const offer = await response.json();
                     this.log(`✅ Oferta criada: ${offer._id}`, 'success');
+                    this.log(`📱 Notificações serão enviadas via API REST (verifique logs do worker)`, 'info');
                     
                     // Preencher ID para aceitar
                     document.getElementById('offerId').value = offer._id;
@@ -647,16 +633,23 @@
                         
                         ${offer.notifiedDrivers && offer.notifiedDrivers.length > 0 ? `
                         <div>
-                            <div class="label" style="font-size: 12px; color: #6c757d; margin-bottom: 8px;">NOTIFICAÇÕES ENVIADAS:</div>
+                            <div class="label" style="font-size: 12px; color: #6c757d; margin-bottom: 8px;">📱 NOTIFICAÇÕES ENVIADAS VIA API:</div>
                             <div class="notifications-list" style="font-size: 11px; color: #888;">
                                 ${offer.notifiedDrivers.map(notif => 
                                     `<div style="margin-bottom: 2px;">
-                                        📱 ${notif.driverId} - ${new Date(notif.notifiedAt).toLocaleTimeString()}
+                                        � POST /notify-driver → ${notif.driverId} - ${new Date(notif.notifiedAt).toLocaleTimeString()}
                                     </div>`
                                 ).join('')}
                             </div>
                         </div>
-                        ` : ''}
+                        ` : `
+                        <div>
+                            <div class="label" style="font-size: 12px; color: #6c757d; margin-bottom: 8px;">📱 STATUS NOTIFICAÇÕES:</div>
+                            <div style="font-size: 11px; color: #888;">
+                                🔄 Aguardando processamento via API REST...
+                            </div>
+                        </div>
+                        `}
                     </div>
                 `).join('');
             }
@@ -667,10 +660,10 @@
                 
                 if (connected) {
                     statusDot.classList.remove('disconnected');
-                    statusText.textContent = 'Conectado ao WebSocket';
+                    statusText.textContent = 'Sistema Online - API REST';
                 } else {
                     statusDot.classList.add('disconnected');
-                    statusText.textContent = 'Desconectado';
+                    statusText.textContent = 'Sistema Offline';
                 }
             }
 

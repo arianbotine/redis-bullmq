@@ -3,24 +3,23 @@ import { InjectModel } from '@nestjs/mongoose';
 import { InjectQueue } from '@nestjs/bull';
 import { Model } from 'mongoose';
 import { Queue } from 'bull';
-import Redis from 'ioredis';
 import { Offer, OfferDocument } from './schemas/offer.schema';
-import { OffersGateway } from './offers.gateway';
-
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT, 10) || 6379,
-});
+import { NotificationService } from './notification.service';
+import { RedisService } from '../redis/redis.service';
+import { MongoOptimizedService } from '../database/mongo-optimized.service';
 
 /**
- * Serviço de ofertas, orquestrando Redis, Bull e MongoDB.
+ * Serviço de ofertas otimizado para alto volume.
+ * Usa serviços especializados para Redis e MongoDB.
  */
 @Injectable()
 export class OffersService {
   constructor(
     @InjectModel(Offer.name) private readonly offerModel: Model<OfferDocument>,
     @InjectQueue('offers') private readonly offerQueue: Queue,
-    private readonly offersGateway: OffersGateway,
+    private readonly notificationService: NotificationService,
+    private readonly redisService: RedisService,
+    private readonly mongoService: MongoOptimizedService,
   ) {}
 
   /**
@@ -54,27 +53,35 @@ export class OffersService {
     drivers: string[];
     durationMinutes: number;
   }) {
+    console.log('📝 [OFFERS] Iniciando criação de oferta:', dto);
+    
     // 1. MongoDB: cria documento
     const offer = await this.offerModel.create({
       ...dto,
       status: 'pending',
     });
+    console.log('✅ [OFFERS] Documento MongoDB criado:', offer._id);
     
     // 2. Redis: cria chave de status com TTL
     const ttl = (dto.durationMinutes + 5) * 60; // segundos
-    await redis.set(`offer:${offer._id}:status`, 'pending', 'EX', ttl);
+    console.log('🔑 [OFFERS] Definindo status no Redis com TTL:', ttl);
+    await this.redisService.setOptimized(`offer:${offer._id}:status`, 'pending', ttl);
+    console.log('✅ [OFFERS] Status Redis definido');
     
     // 3. Bull: agenda trabalhos com nova lógica de escalonamento
     const numDrivers = dto.drivers.length;
     const totalDuration = dto.durationMinutes * 60 * 1000; // ms
+    console.log('⏰ [OFFERS] Calculando timing - duração total:', totalDuration, 'ms');
     
     // Calcular intervalos de notificação
     // Se 15min e 3 motoristas: min 0, min 5, min 10, expirar min 15
     const notificationInterval = numDrivers > 1 ? totalDuration / numDrivers : 0;
+    console.log('📊 [OFFERS] Intervalo de notificação:', notificationInterval, 'ms');
     
     // Agendar notificação para cada motorista
     for (let i = 0; i < numDrivers; i++) {
       const delayMs = i * notificationInterval;
+      console.log(`📞 [OFFERS] Agendando notificação ${i} com delay:`, delayMs, 'ms');
       await this.offerQueue.add('notify-drivers', {
         offerId: offer._id,
         drivers: [dto.drivers[i]],
@@ -86,6 +93,7 @@ export class OffersService {
     }
     
     // Agendar expiração no final do tempo total
+    console.log('⏱️ [OFFERS] Agendando expiração com delay:', totalDuration, 'ms');
     await this.offerQueue.add('expire-offer', {
       offerId: offer._id,
     }, {
@@ -93,40 +101,51 @@ export class OffersService {
       jobId: `expire-offer:${offer._id}`,
     });
     
+    console.log('🎉 [OFFERS] Oferta criada com sucesso:', offer._id);
     return offer;
   }
 
   /**
    * Aceita uma oferta de forma atômica no Redis.
+   * Otimizado para alta concorrência e operações seguras.
    * @param offerId ID da oferta
    * @param driverId ID do motorista
    */
   async acceptOffer(offerId: string, driverId: string) {
-    // LUA para garantir atomicidade
-    const luaScript = `
-      if redis.call('get', KEYS[1]) == 'pending' then
-        redis.call('set', KEYS[1], 'accepted')
-        return 1
-      end
-      return 0
-    `;
-    const result = await redis.eval(luaScript, 1, `offer:${offerId}:status`);
+    // Operação atômica usando o RedisService otimizado
+    const success = await this.redisService.atomicStatusChange(offerId, 'pending', 'accepted');
     
-    if (result === 1) {
+    if (success) {
+      console.log(`✅ [OFFERS] Oferta ${offerId} aceita por ${driverId}`);
+      
       // Cancelar TODOS os trabalhos pendentes para esta oferta
       await this.cancelAllPendingJobs(offerId);
       
-      // Emite evento WebSocket
-      this.offersGateway.emitOfferAccepted(offerId, driverId);
+      // Simular notificação de aceite para sistema externo
+      await this.notificationService.notifyOfferAccepted(offerId, driverId);
       
-      // Atualiza MongoDB de forma assíncrona
-      this.offerModel.findByIdAndUpdate(offerId, {
-        status: 'accepted',
-        acceptedBy: driverId,
-        acceptedAt: new Date(),
-      }).exec();
+      // Atualizar MongoDB com operação atômica otimizada
+      const mongoSuccess = await this.mongoService.atomicStatusUpdate(
+        offerId,
+        'pending',
+        'accepted',
+        {
+          acceptedBy: driverId,
+          acceptedAt: new Date(),
+        }
+      );
       
-      return { status: 'accepted' };
+      if (!mongoSuccess) {
+        console.error(`❌ [OFFERS] Falha ao atualizar MongoDB para oferta aceita ${offerId}`);
+        // Rollback do Redis se MongoDB falhar
+        await this.redisService.atomicStatusChange(offerId, 'accepted', 'pending');
+        throw new ConflictException('Erro interno - tente novamente');
+      }
+      
+      // Limpeza das chaves Redis
+      await this.cleanupRedisKeys(offerId);
+      
+      return { status: 'accepted', acceptedBy: driverId };
     } else {
       throw new ConflictException('Oferta já foi aceita ou expirada');
     }
@@ -150,6 +169,27 @@ export class OffersService {
       }
     } catch (error) {
       console.error('Erro ao cancelar jobs:', error);
+    }
+  }
+
+  /**
+   * Limpeza otimizada das chaves Redis relacionadas à oferta.
+   * @param offerId ID da oferta
+   */
+  private async cleanupRedisKeys(offerId: string): Promise<void> {
+    try {
+      const keyPatterns = [
+        `offer:${offerId}:*`,
+        `bull:offers:*${offerId}*`,
+      ];
+
+      const deletedCount = await this.redisService.atomicCleanupKeys(keyPatterns);
+      
+      if (deletedCount > 0) {
+        console.log(`🗑️ [OFFERS] ${deletedCount} chaves Redis limpas para oferta ${offerId}`);
+      }
+    } catch (error) {
+      console.error(`❌ [OFFERS] Erro ao limpar chaves Redis para oferta ${offerId}:`, error.message);
     }
   }
 }

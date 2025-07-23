@@ -3,11 +3,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { BullModule } from '@nestjs/bull';
 import { OffersController } from './offers.controller';
 import { OffersService } from './offers.service';
-import { OffersGateway } from './offers.gateway';
+import { NotificationService } from './notification.service';
 import { Offer, OfferSchema } from './schemas/offer.schema';
+import { RedisService } from '../redis/redis.service';
+import { MongoOptimizedService } from '../database/mongo-optimized.service';
 
 /**
- * Módulo de ofertas, responsável por orquestrar API, WebSocket e persistência.
+ * Módulo de ofertas otimizado para alto volume.
  */
 @Module({
   imports: [
@@ -17,7 +19,12 @@ import { Offer, OfferSchema } from './schemas/offer.schema';
     }),
   ],
   controllers: [OffersController],
-  providers: [OffersService, OffersGateway],
-  exports: [OffersService, OffersGateway],
+  providers: [
+    OffersService, 
+    NotificationService,
+    RedisService,
+    MongoOptimizedService
+  ],
+  exports: [OffersService, RedisService, MongoOptimizedService],
 })
 export class OffersModule {}

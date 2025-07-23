@@ -45,16 +45,6 @@ else
     log_info "Nenhuma aplicação rodando na porta 3000"
 fi
 
-# Verificar processos worker
-WORKER_PID=$(pgrep -f "worker.ts" 2>/dev/null)
-if [ ! -z "$WORKER_PID" ]; then
-    log_info "Parando worker Bull (PID: $WORKER_PID)..."
-    kill $WORKER_PID 2>/dev/null
-    log_success "Worker Bull parado"
-else
-    log_info "Nenhum worker Bull rodando"
-fi
-
 # Parar processos NestJS em background (nohup)
 NEST_BACKGROUND=$(pgrep -f "npm run start:dev" 2>/dev/null)
 if [ ! -z "$NEST_BACKGROUND" ]; then
@@ -63,23 +53,10 @@ if [ ! -z "$NEST_BACKGROUND" ]; then
     log_success "Aplicação NestJS em background parada"
 fi
 
-# Parar processos worker em background (nohup)
-WORKER_BACKGROUND=$(pgrep -f "npm run start:worker" 2>/dev/null)
-if [ ! -z "$WORKER_BACKGROUND" ]; then
-    log_info "Parando worker Bull em background (PID: $WORKER_BACKGROUND)..."
-    kill $WORKER_BACKGROUND 2>/dev/null
-    log_success "Worker Bull em background parado"
-fi
-
 # Limpar arquivos de log se existirem
 if [ -f "app.log" ]; then
     log_info "Removendo app.log..."
     rm -f app.log
-fi
-
-if [ -f "worker.log" ]; then
-    log_info "Removendo worker.log..."
-    rm -f worker.log
 fi
 
 echo ""
