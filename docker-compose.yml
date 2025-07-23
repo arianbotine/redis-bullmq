@@ -1,0 +1,44 @@
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: offers-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: offers
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - offers-network
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: offers-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - offers-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: offers-redis-commander
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:offers-redis:6379
+      - HTTP_USER=admin
+      - HTTP_PASSWORD=admin
+    depends_on:
+      - redis
+    networks:
+      - offers-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  offers-network:
+    driver: bridge
