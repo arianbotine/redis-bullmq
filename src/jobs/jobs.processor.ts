@@ -31,8 +31,26 @@ export class JobsProcessor {
   async handleNotifyDrivers(job: Job) {
     const { offerId, drivers } = job.data;
     const status = await redis.get(`offer:${offerId}:status`);
+    
     if (status === 'pending') {
+      // Notificar via WebSocket
       this.offersGateway.notifyDrivers(offerId, drivers);
+      
+      // Registrar notificação no MongoDB para cada motorista
+      const notificationTime = new Date();
+      for (const driverId of drivers) {
+        await this.offerModel.findByIdAndUpdate(
+          offerId,
+          {
+            $push: {
+              notifiedDrivers: {
+                driverId: driverId,
+                notifiedAt: notificationTime
+              }
+            }
+          }
+        );
+      }
     }
   }
 

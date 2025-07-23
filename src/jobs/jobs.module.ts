@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { MongooseModule } from '@nestjs/mongoose';
+import { DatabaseModule } from '../database/database.module';
 import { JobsProcessor } from './jobs.processor';
 import { Offer, OfferSchema } from '../offers/schemas/offer.schema';
 import { OffersGateway } from '../offers/offers.gateway';
@@ -10,6 +11,7 @@ import { OffersGateway } from '../offers/offers.gateway';
  */
 @Module({
   imports: [
+    DatabaseModule,
     BullModule.forRoot({
       redis: {
         host: process.env.REDIS_HOST || 'localhost',
